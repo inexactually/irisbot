@@ -49,6 +49,7 @@ class OptRoles(rolecache.RoleCache):
     async def join(self, ctx, *roles):
         """Adds roles to the user.
         """
+        roles = [r[:-1] if r.endswith(',') else r for r in roles]
         found, not_found = self.parse_role_list(ctx.message.server, roles)
         if not_found:
             await self.say_no_such_roles(not_found)
