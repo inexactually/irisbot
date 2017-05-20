@@ -240,7 +240,7 @@ class Colors(rolecache.RoleCache):
                     opt_color_name='**{}** '.format(color_name) if color_name else '',
                     corrected=corrected_color)
         if corrected_color:
-            template = "{mention} Sorry, but {opt_color_name}{hex_code} is too {dark_or_light}. How's {corrected} instead?"
+            template = "{mention} Sorry, but {opt_color_name}{hex_code} is too {dark_or_light}. I've given you {corrected}, which is the closest allowed color."
         else:
             template = "{mention} Here you go. {opt_color_name}{hex_code}."
         message = template.format(**args)
