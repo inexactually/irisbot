@@ -1,5 +1,4 @@
 import collections
-import inspect
 import re
 import sys
 import traceback
