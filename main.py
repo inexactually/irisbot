@@ -122,10 +122,6 @@ class Irisbot(utils.Bot):
 
 
 if __name__ == '__main__':
-    log = logging.getLogger('discord.http')
-    log.setLevel(logging.DEBUG)
-    log.addHandler(logging.FileHandler(filename='debug.log', mode='w'))
-
     bot = Irisbot()
     bot.run(config.TOKEN)
 
