@@ -1,8 +1,11 @@
+import io
 import math
 import re
 
 import discord
 from discord.ext import commands
+import wand
+from wand import color, image
 
 import colornames
 import rolecache
@@ -15,6 +18,17 @@ ROLE_PREFIX   = utils.setting('COLORS_ROLE_PREFIX',   '')
 
 LUMINANCE_RANGE = (MIN_LUMINANCE, MAX_LUMINANCE)
 ROLE_REGEX = re.compile(re.escape(ROLE_PREFIX) + '(#[a-fA-F0-9]{6})')
+
+def generate_swatch(color, w=200, h=30):
+    """Produces a file-like object with solid-color image.
+    """
+    f = io.BytesIO()
+    c = wand.color.Color(str(color))
+    img = wand.image.Image(width=w, height=h, background=c)
+    img.format = 'png'
+    img.save(file=f)
+    f.seek(0)
+    return f
 
 def quantize(x):
     """Quantizes a byte into one of 8 equally-spaced values.
@@ -97,7 +111,7 @@ def clamp_luminance(color, *, luminance_range=LUMINANCE_RANGE):
     else:
         return color
 
-_hexcolor = re.compile('#?[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}')
+_hexcolor = re.compile('#?([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})')
 def get_color_info(color):
     """Looks up a color by hex code, exact name, or approximate name.
 
@@ -166,6 +180,22 @@ class Colors(rolecache.RoleCache):
             updated_roles = [r for r in member.roles if r.id not in old_role_ids] + [new_role]
             await self.bot.replace_roles(member, *updated_roles)
 
+    @commands.command(pass_context=True)
+    async def swatch(self, ctx, *, color : str):
+        """Show a sample swatch of a color.
+        """
+        color = sanitize_markdown(color)
+        desired_color, color_names = get_color_info(color)
+        if not desired_color:
+            if color_names:
+                await self.say_color_ambiguous(ctx, color, color_names)
+            else:
+                await self.say_color_unknown(ctx, color)
+            return
+
+        name = color_names[0] if color_names else None
+        await self.send_swatch(ctx.message.channel, color=desired_color, name=name)
+
     @commands.group(pass_context=True, no_pm=True, invoke_without_command=True)
     async def color(self, ctx, *, color : str):
         """Changes your name color.
@@ -185,19 +215,22 @@ class Colors(rolecache.RoleCache):
                 await self.say_color_unknown(ctx, color)
             return
 
-        actual_color = desired_color
         canonical_name = color_names[0] if color_names else None
+
+        effective_color = desired_color
         if LIMIT_PALETTE:
-            actual_color = rgb9(desired_color)
+            effective_color = rgb9(effective_color)
+        effective_color = clamp_luminance(effective_color, luminance_range=LUMINANCE_RANGE)
 
-        corrected_color = None
-        clamped = clamp_luminance(actual_color, luminance_range=LUMINANCE_RANGE)
-        if clamped != actual_color:
-            corrected_color = actual_color = clamped
+        await self.set_color(ctx.message.author, ctx.message.server, effective_color)
 
-        await self.set_color(ctx.message.author, ctx.message.server, actual_color)
-        await self.say_color_changed(ctx, color=desired_color,
-                                     color_name=canonical_name, corrected_color=corrected_color)
+        mention = ctx.message.author.mention
+        if effective_color == desired_color:
+            message = "{} Here's your new color.".format(mention)
+        else:
+            message = "{} Here's the closest color to {} I can give you.".format(mention, desired_color)
+
+        await self.send_swatch(ctx.message.channel, color=effective_color, name=canonical_name, content=message)
 
     @color.command(pass_context=True, no_pm=True)
     async def reset(self, ctx):
@@ -231,21 +264,16 @@ class Colors(rolecache.RoleCache):
 
         await self.bot.reply("Removed {} unused color roles.".format(deleted))
 
-    async def say_color_changed(self, ctx, *, color, color_name=None, corrected_color=None):
-        actual_color = corrected_color or color
-        made_darker = corrected_color and (corrected_color.value < color.value)
-        args = dict(mention=ctx.message.author.mention,
-                    hex_code=color,
-                    dark_or_light='light' if made_darker else 'dark',
-                    opt_color_name='**{}** '.format(color_name) if color_name else '',
-                    corrected=corrected_color)
-        if corrected_color:
-            template = "{mention} Sorry, but {opt_color_name}{hex_code} is too {dark_or_light}. I've given you {corrected}, which is the closest allowed color."
+    async def send_swatch(self, channel, color, content=None, name=None):
+        if name:
+            title = '{} - {}'.format(str(color), name)
         else:
-            template = "{mention} Here you go. {opt_color_name}{hex_code}."
-        message = template.format(**args)
-        em = discord.Embed(color=actual_color, description=message)
-        await self.bot.say(embed=em)
+            title = str(color)
+        with generate_swatch(color) as f:
+            name = '{}.png'.format(str(color).replace('#', ''))
+            em = discord.Embed(title=title)
+            em.set_image(url='attachment://{}'.format(name))
+            return await self.bot.send_file(channel, f, content=content, embed=em, filename=name)
 
     async def say_color_unknown(self, ctx, color_name):
         if color_name.startswith('#'):

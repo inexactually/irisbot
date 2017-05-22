@@ -1,6 +1,11 @@
 ## Requirements
 
-Python 3.5 (for the `async`/`await` sugar) and `discord.py`.
+Python 3.5 (for the `async`/`await` sugar), `discord.py`,
+and [`Wand`](http://wand-py.org/) (for color swatches).
+
+Wand in turn requires ImageMagick. You may find its
+[instal guide](http://docs.wand-py.org/en/0.4.4/guide/install.html)
+helpful.
 
 ## Setup
 

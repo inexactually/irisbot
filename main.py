@@ -1,4 +1,5 @@
 import collections
+import logging
 import re
 import sys
 import traceback
@@ -44,7 +45,7 @@ async def adminhelp(ctx, *, category : str =None):
         await bot.say(cog.adminhelp(ctx))
 
 
-class Irisbot(commands.Bot):
+class Irisbot(utils.Bot):
     def __init__(self):
         super().__init__(command_prefix='?',
                          description='Self-service role and color assignment.',
@@ -119,13 +120,12 @@ class Irisbot(commands.Bot):
         print('Ignoring exception in command {}'.format(context.command), file=sys.stderr)
         traceback.print_exception(type(exception), exception, exception.__traceback__, file=sys.stderr)
 
-    async def reply(self, content, *args, **kwargs):
-        author = utils.bot_get_variable('_internal_author')
-        text = '{0.mention} {1}'.format(author, str(content))
-        return await self.say(text, *args, **kwargs)
-
 
 if __name__ == '__main__':
+    log = logging.getLogger('discord.http')
+    log.setLevel(logging.DEBUG)
+    log.addHandler(logging.FileHandler(filename='debug.log', mode='w'))
+
     bot = Irisbot()
     bot.run(config.TOKEN)
 
