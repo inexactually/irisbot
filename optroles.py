@@ -13,6 +13,17 @@ def pretty_role(role):
     else:
         return name
 
+def pretty_role_list(roles, **kwargs):
+    return utils.pretty_list([pretty_role(r) for r in roles], **kwargs)
+
+def partition_roles(roles, member):
+    absent, present = [], []
+    for r in roles:
+        if r in member.roles:
+            present.append(r)
+        else:
+            absent.append(r)
+    return absent, present
 
 class OptRoles(rolecache.RoleCache):
     """Commands to allow users to assign themselves roles.
@@ -37,10 +48,18 @@ class OptRoles(rolecache.RoleCache):
     async def roles(self, ctx):
         """Lists available opt-in roles.
         """
-        names = self.all_keys(ctx.message.server)
+        user = ctx.message.author
+        server = ctx.message.server
+        absent, present = partition_roles(self.all_roles(server), user)
+        available = pretty_role_list(absent)
+        posessed  = pretty_role_list(present)
 
-        if names:
-            message = "Available roles: {}.".format(utils.pretty_list(names))
+        if available and posessed:
+            message = "Available roles are {}. (You're currently in {}).".format(available, posessed)
+        elif available and not posessed:
+            message = "Available roles are {}.".format(available)
+        elif posessed and not available:
+            message = "You're currently in all the roles ({}).".format(posessed)
         else:
             message = "There are no user-joinable roles at this time."
         await self.bot.reply(message)
@@ -101,13 +120,11 @@ class OptRoles(rolecache.RoleCache):
 
     async def join_roles(self, ctx, roles):
         user = ctx.message.author
-        absent, present = [], []
-        for r in roles:
-            (absent, present)[r in user.roles].append(r)
+        absent, present = partition_roles(roles, user)
         if absent:
             await self.bot.add_roles(user, *absent)
-            added_list = utils.pretty_list(pretty_role(role) for role in absent)
-            already_list = utils.pretty_list(pretty_role(role) for role in present)
+            added_list = pretty_role_list(absent)
+            already_list = pretty_role_list(present)
             message = "Added you to role {}."
             if present:
                 message += " (You're already in {}.)"
@@ -117,13 +134,11 @@ class OptRoles(rolecache.RoleCache):
 
     async def leave_roles(self, ctx, roles):
         user = ctx.message.author
-        absent, present = [], []
-        for r in roles:
-            (absent, present)[r in user.roles].append(r)
+        absent, present = partition_roles(roles, user)
         if present:
             await self.bot.remove_roles(user, *present)
-            removed_list = utils.pretty_list(pretty_role(role) for role in present)
-            not_in_list = utils.pretty_list([pretty_role(role) for role in absent], conjunction='or')
+            removed_list = pretty_role_list(present)
+            not_in_list = pretty_role_list(absent, conjunction='or')
             message = "Removed you from role {}."
             if absent:
                 message += " (You weren't in {} in the first place.)"

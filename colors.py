@@ -220,7 +220,14 @@ class Colors(rolecache.RoleCache):
         effective_color = desired_color
         if LIMIT_PALETTE:
             effective_color = rgb9(effective_color)
-        effective_color = clamp_luminance(effective_color, luminance_range=LUMINANCE_RANGE)
+
+        clamped_color = clamp_luminance(effective_color)
+        reason = None
+        if clamped_color.value < effective_color.value:
+            reason = 'light'
+        elif clamped_color.value > effective_color.value:
+            reason = 'dark'
+        effective_color = clamped_color
 
         await self.set_color(ctx.message.author, ctx.message.server, effective_color)
 
@@ -228,7 +235,11 @@ class Colors(rolecache.RoleCache):
         if effective_color == desired_color:
             message = "{} Here's your new color.".format(mention)
         else:
-            message = "{} Here's the closest color to {} I can give you.".format(mention, desired_color)
+            if reason:
+                message = "{} {} is too {}, but I've given you something close.".format(mention, desired_color, reason)
+            else:
+                message = "{} Here's the closest color to {} I can give you.".format(mention, desired_color)
+            canonical_name = None
 
         await self.send_swatch(ctx.message.channel, color=effective_color, name=canonical_name, content=message)
 
