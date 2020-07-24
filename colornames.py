@@ -614,7 +614,7 @@ WIKIPEDIA = {
     "Dark Green": "#013220",
     "Dark Green (X11)": "#006400",
     "Dark Gunmetal": "#1F262A",
-    "Dark Imperial Blue": "#00416A",
+    # "Dark Imperial Blue": "#00416A",
     "Dark Imperial Blue": "#00147E",
     "Dark Jungle Green": "#1A2421",
     "Dark Khaki": "#BDB76B",
@@ -1066,7 +1066,7 @@ WIKIPEDIA = {
     "Middle Green Yellow": "#ACBF60",
     "Middle Purple": "#D982B5",
     "Middle Red": "#E58E73",
-    "Middle Red Purple": "#A55353",
+    # "Middle Red Purple": "#A55353",
     "Middle Yellow": "#FFEB00",
     "Middle Yellow Red": "#ECB176",
     "Midnight": "#702670",
@@ -1201,7 +1201,7 @@ WIKIPEDIA = {
     "Pastel Yellow": "#FDFD96",
     "Patriarch": "#800080",
     "Payne's Grey": "#536878",
-    "Peach": "#FFE5B4",
+    # "Peach": "#FFE5B4",
     "Peach": "#FFCBA4",
     "Peach-Orange": "#FFCC99",
     "Peach Puff": "#FFDAB9",
@@ -1339,7 +1339,7 @@ WIKIPEDIA = {
     "Rosy Brown": "#BC8F8F",
     "Royal Azure": "#0038A8",
     "Royal Blue": "#002366",
-    "Royal Blue": "#4169E1",
+    # "Royal Blue": "#4169E1",
     "Royal Fuchsia": "#CA2C92",
     "Royal Purple": "#7851A9",
     "Royal Yellow": "#FADA5E",
@@ -1379,7 +1379,7 @@ WIKIPEDIA = {
     "Sasquatch Socks": "#FF4681",
     "Satin Sheen Gold": "#CBA135",
     "Scarlet": "#FF2400",
-    "Scarlet": "#FD0E35",
+    # "Scarlet": "#FD0E35",
     "Schauss Pink": "#FF91AF",
     "School Bus Yellow": "#FFD800",
     "Screamin' Green": "#66FF66",
@@ -1472,7 +1472,7 @@ WIKIPEDIA = {
     "Taupe": "#483C32",
     "Taupe Gray": "#8B8589",
     "Tea Green": "#D0F0C0",
-    "Tea Rose": "#F88379",
+    # "Tea Rose": "#F88379",
     "Tea Rose": "#F4C2C2",
     "Teal": "#008080",
     "Teal Blue": "#367588",
@@ -1543,7 +1543,7 @@ WIKIPEDIA = {
     "Venetian Red": "#C80815",
     "Verdigris": "#43B3AE",
     "Vermilion": "#E34234",
-    "Vermilion": "#D9381E",
+    # "Vermilion": "#D9381E",
     "Veronica": "#A020F0",
     "Very Light Azure": "#74BBFB",
     "Very Light Blue": "#6666FF",
@@ -1629,12 +1629,16 @@ ALL.update(CRAYOLA)
 ALL.update(CSS)
 
 _words_re = re.compile(r'[- ()\n\t]+')
+
+
 def words(name):
     raw = _words_re.split(name)
     return [w.replace("'", '').lower() for w in raw if w]
 
+
 def canonicalize(name):
     return ' '.join(words(name))
+
 
 LOOKUP = {}
 CONTAINS_WORD = collections.defaultdict(set)
@@ -1643,6 +1647,7 @@ for name, code in ALL.items():
     LOOKUP[canonical] = (code, name)
     for w in words(name):
         CONTAINS_WORD[w].add(name)
+
 
 def find_exact(name):
     """Retrieves the hex code and canonical name for a color.
@@ -1653,6 +1658,7 @@ def find_exact(name):
     """
     return LOOKUP.get(canonicalize(name), None)
 
+
 def disambiguate(name):
     """Gets color names that are most similar to a given name.
 
@@ -1660,7 +1666,7 @@ def disambiguate(name):
     with the words of the name given.
     """
     counts = collections.Counter()
-    best_set = {}
+    best_set = set()
     best_count = 0
     for word in words(name):
         if word in CONTAINS_WORD:
@@ -1675,6 +1681,7 @@ def disambiguate(name):
 
     return list(best_set)
 
+
 def find_best(name):
     """Finds the best matching color for a given name.
 
@@ -1687,7 +1694,6 @@ def find_best(name):
 
     closest = disambiguate(name)
     if len(closest) == 1:
-        guess, = closest
         return find_exact(closest)
 
     return None
