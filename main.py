@@ -8,7 +8,6 @@ import discord
 from discord.ext import commands
 
 import admintools
-import age
 import autoroles
 import colors
 import config
@@ -19,12 +18,13 @@ import utils
 
 CHANNEL_WHITELIST = utils.setting('BOT_CHANNEL_WHITELIST', [])
 CHANNEL_BLACKLIST = utils.setting('BOT_CHANNEL_BLACKLIST', [])
-CHANNEL_REGEX     = utils.setting('BOT_CHANNEL_REGEX', r'^bots?($|[-_].*)')
-ROLE_WHITELIST    = [r.lower() for r in utils.setting('BOT_ROLE_WHITELIST', [])]
-ROLE_BLACKLIST    = [r.lower() for r in utils.setting('BOT_ROLE_BLACKLIST', [])]
-SUPERUSER_ROLES   = [r.lower() for r in utils.setting('BOT_SUPERUSER_ROLES', [])]
+CHANNEL_REGEX = utils.setting('BOT_CHANNEL_REGEX', r'^bots?($|[-_].*)')
+ROLE_WHITELIST = [r.lower() for r in utils.setting('BOT_ROLE_WHITELIST', [])]
+ROLE_BLACKLIST = [r.lower() for r in utils.setting('BOT_ROLE_BLACKLIST', [])]
+SUPERUSER_ROLES = [r.lower() for r in utils.setting('BOT_SUPERUSER_ROLES', [])]
 
-async def adminhelp(ctx, *, category : str =None):
+
+async def adminhelp(ctx, *, category: str = None):
     """Gives admin-relevant details about this bot.
     """
     bot = ctx.bot
@@ -35,30 +35,28 @@ async def adminhelp(ctx, *, category : str =None):
     if not category:
         message = ("Select a module to see admin-relevant information about it. "
                    "Available categories are: {}.")
-        await bot.reply(message.format(utils.pretty_list(categories, empty='none')))
+        await ctx.reply(message.format(utils.pretty_list(categories, empty='none')))
         return
 
     cog = categories.get(category.lower())
     if not cog:
-        await bot.say('No admin-specific help for "{}".'.format(category))
+        await ctx.send('No admin-specific help for "{}".'.format(category))
     else:
-        await bot.say(cog.adminhelp(ctx))
+        await ctx.send(cog.adminhelp(ctx))
 
 
 class Irisbot(utils.Bot):
     def __init__(self):
         super().__init__(command_prefix='?',
                          description='Self-service role and color assignment.',
-                         formatter=formatter.FancyFormatter())
+                         help_command=formatter.FancyFormatter())
         self._help_text = 'say ?help in #bot-'
 
         # This is scary but it seems to be needed to get a cog-less command.
-        self.command(no_pm=True, pass_context=True, name="adminhelp")(
-            commands.has_permissions(administrator=True)(adminhelp))
+        self.command(name="adminhelp")(adminhelp)
 
         self.add_check(self.is_allowed)
         self.add_cog(admintools.AdminTools(self))
-        self.add_cog(age.Age(self))
         self.add_cog(autoroles.AutoRoles(self))
         self.add_cog(colors.Colors(self))
         self.add_cog(optroles.OptRoles(self))
@@ -104,24 +102,25 @@ class Irisbot(utils.Bot):
 
     async def on_ready(self):
         print('Logged in as:\n  {0} (ID: {0.id})'.format(self.user))
-        if self.servers:
-            print('Currently in {} server(s):'.format(len(self.servers)))
-            for server in self.servers:
-                print('  ' + server.name)
-        print('To add this bot to a server, visit:')
+        if self.guilds:
+            print('Currently in {} guild(s):'.format(len(self.guilds)))
+            for guild in self.guilds:
+                print('  ' + guild.name)
+        print('To add this bot to a guild, visit:')
         print('  ' + self.oauth2_url())
         print()
-        await bot.change_presence(game=discord.Game(name=self._help_text))
+        await bot.change_presence(activity=discord.Game(name=self._help_text))
 
-    async def on_command_error(self, exception, context):
+    async def on_command_error(self, context, exception):
         if isinstance(exception, commands.CheckFailure):
             return
 
-        print('Ignoring exception in command {}'.format(context.command), file=sys.stderr)
-        traceback.print_exception(type(exception), exception, exception.__traceback__, file=sys.stderr)
+        print('Ignoring exception in command {}'.format(
+            context.command), file=sys.stderr)
+        traceback.print_exception(
+            type(exception), exception, exception.__traceback__, file=sys.stderr)
 
 
 if __name__ == '__main__':
     bot = Irisbot()
     bot.run(config.TOKEN)
-

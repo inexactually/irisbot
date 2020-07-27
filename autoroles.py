@@ -3,13 +3,15 @@ import re
 import discord
 from discord.ext import commands
 
-import rolecache
+from rolecog import RoleCog
 import utils
 
 ROLE_PREFIX = utils.setting('AUTO_ROLE_PREFIX', '(Auto)')
-ROLE_REGEX = re.compile(re.escape(ROLE_PREFIX) + ' *([^ ].+[^ ] *(\+ *[^ ].+[^ ])*)', re.I)
+ROLE_REGEX = re.compile(re.escape(ROLE_PREFIX) +
+                        r' *([^ ].+[^ ] *(\+ *[^ ].+[^ ])*)', re.I)
 
-class AutoRoles(rolecache.RoleCache):
+
+class AutoRoles(RoleCog, name='Auto Roles'):
     def key_for_role(self, role):
         name = role.name.lower()
         m = ROLE_REGEX.fullmatch(name)
@@ -21,7 +23,7 @@ class AutoRoles(rolecache.RoleCache):
         super().__init__(*args, **kwargs)
         self._processing = set()
 
-    @commands.command(no_pm=True, pass_context=True)
+    @commands.command()
     @commands.has_permissions(administrator=True)
     async def autoroles(self, ctx):
         """Apply automatic roles retroactively. (admin only)
@@ -30,17 +32,17 @@ class AutoRoles(rolecache.RoleCache):
         automatically whenever roles change once the bot is online.
         """
         fixed = 0
-        for member in ctx.message.server.members:
+        for member in ctx.message.guild.members:
             changed = await self.autorole_member(member)
             fixed += 1 if changed else 0
         message = "Updated roles on {} users."
-        await self.bot.reply(message.format(fixed))
+        await ctx.reply(message.format(fixed))
 
     async def autorole_member(self, member):
         self._processing.add(member)
         role_names = set(role.name.lower() for role in member.roles)
         to_remove, to_add = [], []
-        for (req1, req2), role in self.roles_by_key(member.server):
+        for (req1, req2), role in self.roles_by_key(member.guild):
             if req1 in role_names and req2 in role_names:
                 to_add.append(role)
             elif role in member.roles:
@@ -48,13 +50,15 @@ class AutoRoles(rolecache.RoleCache):
 
         changed = False
         if to_add or to_remove:
-            updated_roles = [r for r in member.roles if r not in to_remove] + to_add
-            await self.bot.replace_roles(member, *updated_roles)
+            updated_roles = [
+                r for r in member.roles if r not in to_remove] + to_add
+            await member.edit(roles=updated_roles)
             changed = True
 
         self._processing.remove(member)
         return changed
 
+    @commands.Cog.listener()
     async def on_member_update(self, before, after):
         if before in self._processing or after in self._processing:
             return
@@ -74,7 +78,7 @@ class AutoRoles(rolecache.RoleCache):
                  "the `cool people` role and the `adults` role.").format(ROLE_PREFIX)
         desc += '\n\n'
         desc += "Currently recognized auto roles: {}.".format(
-            utils.pretty_list(['`{}`'.format(role.name) for role in self.all_roles(ctx.message.server)],
+            utils.pretty_list(['`{}`'.format(role.name) for role in self.all_roles(ctx.message.guild)],
                               bold=False, empty='none')
         )
         return desc

@@ -9,9 +9,10 @@ import discord
 # still want pagination to work right this seems like the principled
 # approach.
 
+
 class Paginable:
     def size(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     def split(self, max_size):
         if self.size() <= max_size:
@@ -125,20 +126,19 @@ class HelpSection(TextBlock):
 
         prefix = '**{0._name}**'.format(self) if self._name else ''
         if self._hint:
-            prefix += (' ' if header else '') + self._hint
+            prefix += self._hint
         prefix += '\n'
 
         super().__init__(items, prefix=prefix)
-
 
     def children(self, first, rest):
         return (HelpSection(first, name=self._name, hint=self._hint),
                 HelpSection(rest, name=self._name, hint="(cont'd)"))
 
 
-class FancyFormatter(discord.ext.commands.HelpFormatter):
+class FancyFormatter(discord.ext.commands.HelpCommand):
     def is_command(self):
-        return isinstance(self.command, discord.ext.commands.Command)
+        return isinstance(self.context.command, discord.ext.commands.Command)
 
     def get_short_signature(self, cmd):
         """Retrives a command signature, ignoring aliases and defaults.
@@ -169,15 +169,18 @@ class FancyFormatter(discord.ext.commands.HelpFormatter):
 
     def format_section(self, name, commands):
         section = HelpSection(name=name)
-        for name, command in commands:
-            if name not in command.aliases:
-                section.append(self.format_command_short(command))
+        for command in commands:
+            section.append(self.format_command_short(command))
         section.add_line()
         return section
 
     def format_description(self, text):
         unwrapped = re.sub(r'(?<![\r\n])(\r?\n|\r)(?![\r\n])', ' ', text)
         return TextBlock.from_text(unwrapped)
+
+    async def send_message(self, message):
+        for page in message.render_pages(max_size=2000):
+            await self.get_destination().send(content=page)
 
     def get_ending_note(self, has_categories=False):
         command_name = self.context.invoked_with
@@ -186,45 +189,80 @@ class FancyFormatter(discord.ext.commands.HelpFormatter):
             template += " You can also type {0}{1} category for more info on a category."
         return template.format(self.clean_prefix, command_name)
 
-    def format(self):
+    async def command_not_found(self, name):
         message = TextBlock()
-        show_ending_note = False
+        message.add_line("Unknown command `{}`.".format(name))
+        await self.send_message(message)
 
-        description = self.command.description if not self.is_cog() else inspect.getdoc(self.command)
+    async def subcommand_not_found(self, command, name):
+        message = TextBlock()
+        message.add_line("Unknown command option `{}` to command `{}`.".format(
+            name, command.qualified_name))
+        await self.send_message(message)
+
+    async def send_bot_help(self, mapping):
+        message = TextBlock()
+        has_note = False
+
+        for category in mapping:
+            name = category.qualified_name if category else '\u200bOther'
+            commands = await self.filter_commands(mapping[category], sort=True)
+            if commands:
+                message.append(self.format_section(name, commands))
+                has_note = True
+
+        if has_note:
+            message.add_line(self.get_ending_note(has_categories=True))
+
+        await self.send_message(message)
+
+    async def send_cog_help(self, cog):
+        message = TextBlock()
+
+        description = cog.description
         if description:
             message.append(self.format_description(description))
             message.add_line()
 
-        if self.is_command():
-            usage = '**Usage:** `{}`'.format(self.get_command_signature())
-            message.add_line(usage, empty=True)
-            if self.command.help:
-                message.append(self.format_description(self.command.help))
-                message.add_line()
-            if self.has_subcommands():
-                subcommands = list(self.filter_command_list())
-                if subcommands:
-                    message.append(self.format_section('Subcommands', subcommands))
-                    show_ending_note = True
+        commands = await self.filter_commands(cog.get_commands(), sort=True)
+        if commands:
+            message.append(self.format_section('Commands', commands))
+            message.add_line(self.get_ending_note())
 
-        elif self.is_cog():
-            commands = list(self.filter_command_list())
-            if commands:
-                message.append(self.format_section('Commands', commands))
-                show_ending_note = True
+        await self.send_message(message)
 
-        elif self.is_bot():
-            category = lambda tup: tup[1].cog_name or '\u200bOther'
-            data = sorted(self.filter_command_list(), key=category)
-            for category, commands in itertools.groupby(data, key=category):
-                commands = list(commands)
-                if commands:
-                    message.append(self.format_section(category, commands))
-                    show_ending_note = True
+    async def send_group_help(self, group):
+        message = TextBlock()
 
-        if show_ending_note:
-            message.add_line(self.get_ending_note(has_categories=self.is_bot()))
+        description = group.description
+        if description:
+            message.append(self.format_description(description))
+            message.add_line()
 
-        return message.render_pages(max_size=2000)
+        usage = '**Usage:** `{}`'.format(self.get_command_signature(group))
+        message.add_line(usage, empty=True)
+        if group.help:
+            message.append(self.format_description(group.help))
+            message.add_line()
 
+        subcommands = await self.filter_commands(group.commands, sort=True)
+        if subcommands:
+            message.append(self.format_section('Subcommands', subcommands))
 
+        await self.send_message(message)
+
+    async def send_command_help(self, command):
+        message = TextBlock()
+
+        description = command.description
+        if description:
+            message.append(self.format_description(description))
+            message.add_line()
+
+        usage = '**Usage:** `{}`'.format(self.get_command_signature(command))
+        message.add_line(usage, empty=True)
+        if command.help:
+            message.append(self.format_description(command.help))
+            message.add_line()
+
+        await self.send_message(message)
