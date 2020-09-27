@@ -39,7 +39,7 @@ class AutoRoles(RoleCog, name='Auto Roles'):
         await ctx.reply(message.format(fixed))
 
     async def autorole_member(self, member):
-        self._processing.add(member)
+        self._processing.add(member.id)
         role_names = set(role.name.lower() for role in member.roles)
         to_remove, to_add = [], []
         for (req1, req2), role in self.roles_by_key(member.guild):
@@ -50,17 +50,16 @@ class AutoRoles(RoleCog, name='Auto Roles'):
 
         changed = False
         if to_add or to_remove:
-            updated_roles = [
-                r for r in member.roles if r not in to_remove] + to_add
-            await member.edit(roles=updated_roles)
+            updated_roles = (set(member.roles) - set(to_remove)) | set(to_add)
+            await member.edit(roles=list(updated_roles))
             changed = True
 
-        self._processing.remove(member)
+        self._processing.remove(member.id)
         return changed
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
-        if before in self._processing or after in self._processing:
+        if before.id in self._processing:
             return
         if before.roles == after.roles:
             return
